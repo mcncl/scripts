@@ -1,5 +1,5 @@
 steps:
     - label: "🔍 Check the code..."
-        plugins:
-            - shellcheck#v1.3.0:
-                files: gh/*.sh
+      plugins:
+        - shellcheck#v1.3.0:
+            files: gh/*.sh
