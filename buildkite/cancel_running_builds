@@ -1,0 +1,21 @@
+#!/bin/bash
+
+TOKEN=<BUILDKITE_API_TOKEN>
+ORG=<ORGANIZATION_SLUG>
+
+# Make API call to retrieve initial objects and extract URLs
+urls=($(http -I -A bearer --auth "${TOKEN}" GET "https://api.buildkite.com/v2/organizations/${ORG}/builds?state=running" | jq -r '.[] | .url'))
+
+# Loop through URLs, append /cancel, and make API calls
+for url in "${urls[@]}"; do
+    cancel_url="${url}/cancel"
+    echo "Making API call to cancel: $cancel_url"
+
+    # Make API call here (curl example provided)
+    # Replace 'curl' with your API call command
+    curl -s -H "Authorization: Bearer $TOKEN" -X PUT "$cancel_url"  >> /dev/null
+
+    echo "Cancelled $cancel_url :white_check_mark:"
+done
+
+## state=running can be adjusted to be any state, such as state=scheduled

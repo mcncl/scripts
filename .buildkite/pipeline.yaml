@@ -2,4 +2,6 @@ steps:
     - label: "🔍 Check the code..."
       plugins:
         - shellcheck#v1.3.0:
-            files: gh/delete-*.sh
+            files: 
+              - "gh/delete-*.sh"
+              - "buildkite/*"
