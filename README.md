@@ -3,3 +3,6 @@ Just a collections/dump of scripts that I've used that I've found super helpful,
 
 ## GitHub API
 GitHub (`gh`) API scripts and helpers can be found in [gh](/gh).
+
+## Buildkite
+Helper scripts that interact with the Buildkite API can be found in [buildkite](./buildkite)
