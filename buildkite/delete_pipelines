@@ -1,0 +1,101 @@
+#!/bin/bash
+
+set -euo pipefail
+
+TOKEN="${BUILDKITE_API_TOKEN:?Set BUILDKITE_API_TOKEN}"
+ORG="${BUILDKITE_ORG_SLUG:?Set BUILDKITE_ORG_SLUG}"
+API_BASE="https://api.buildkite.com/v2/organizations/${ORG}/pipelines"
+SKIP_CONFIRM=false
+FILTER=""
+
+usage() {
+    echo "Usage: $0 [--yes] [--filter <pattern>]"
+    echo ""
+    echo "Delete pipelines from a Buildkite organization."
+    echo ""
+    echo "Options:"
+    echo "  --yes            Skip confirmation prompts"
+    echo "  --filter PATTERN Only delete pipelines whose slug matches PATTERN (grep -E)"
+    echo ""
+    echo "Environment variables:"
+    echo "  BUILDKITE_API_TOKEN   (required) API token with pipeline write access"
+    echo "  BUILDKITE_ORG_SLUG    (required) Organization slug"
+    exit 1
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --yes) SKIP_CONFIRM=true; shift ;;
+        --filter) FILTER="$2"; shift 2 ;;
+        -h|--help) usage ;;
+        *) echo "Unknown option: $1"; usage ;;
+    esac
+done
+
+confirm_delete() {
+    local slug="$1"
+    while true; do
+        read -rp "Delete pipeline '${slug}'? (y/n/q): " answer
+        case "$answer" in
+            y|Y) return 0 ;;
+            n|N) return 1 ;;
+            q|Q) echo "Quitting."; exit 0 ;;
+            *) echo "Enter y, n, or q to quit." ;;
+        esac
+    done
+}
+
+delete_pipeline() {
+    local slug="$1"
+    local status
+    status=$(curl -s -o /dev/null -w "%{http_code}" \
+        -H "Authorization: Bearer ${TOKEN}" \
+        -X DELETE "${API_BASE}/${slug}")
+
+    if [[ "$status" == "204" ]]; then
+        echo "  Deleted: ${slug}"
+    else
+        echo "  Failed to delete ${slug} (HTTP ${status})"
+    fi
+}
+
+page=1
+deleted=0
+skipped=0
+
+while true; do
+    response=$(curl -s -H "Authorization: Bearer ${TOKEN}" \
+        "${API_BASE}?page=${page}&per_page=100")
+
+    count=$(echo "$response" | jq 'length')
+    if [[ "$count" == "0" ]]; then
+        break
+    fi
+
+    slugs=$(echo "$response" | jq -r '.[].slug')
+
+    for slug in $slugs; do
+        if [[ -n "$FILTER" ]] && ! echo "$slug" | grep -qE "$FILTER"; then
+            continue
+        fi
+
+        if [[ "$SKIP_CONFIRM" == true ]]; then
+            echo "Deleting: ${slug}"
+            delete_pipeline "$slug"
+            ((deleted++))
+        else
+            if confirm_delete "$slug"; then
+                delete_pipeline "$slug"
+                ((deleted++))
+            else
+                echo "  Skipped: ${slug}"
+                ((skipped++))
+            fi
+        fi
+    done
+
+    page=$((page + 1))
+done
+
+echo ""
+echo "Done. Deleted: ${deleted}, Skipped: ${skipped}"
